@@ -5,8 +5,8 @@ import countries from "./assets/Globe Data Min.json";
 import spaceMusic from "./assets/spacemusic.mp3";
 
 // MediaPipe Hands setup
-import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
-import { Camera } from "@mediapipe/camera_utils";
+// import { Hands, HAND_CONNECTIONS } from "@mediapipe/hands";
+// import { Camera } from "@mediapipe/camera_utils";
 
 
 let renderer, camera, scene, controls;
@@ -96,8 +96,107 @@ function init() {
         camera.position.z = controls.maxDistance;
       }
     }
-});
+  });
+  addSearchFeature();
 }
+
+
+function addSearchFeature() {
+  const searchContainer = document.createElement("div");
+  searchContainer.style.position = "absolute";
+  searchContainer.style.top = "20px";
+  searchContainer.style.right = "20px"; // Align with the text box
+  searchContainer.style.zIndex = "1000";
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.placeholder = "Search countries...";
+  searchInput.style.padding = "10px 20px";
+  searchInput.style.width = "180px"; // Match the width of the text box
+  searchInput.style.borderRadius = "25px";
+  searchInput.style.border = "none";
+  searchInput.style.backgroundColor = "rgba(255, 255, 255, 0.1)"; // Match text box style
+  searchInput.style.color = "#ffffff";
+  searchInput.style.fontSize = "16px";
+  searchInput.style.outline = "none";
+
+  searchContainer.appendChild(searchInput);
+  document.body.appendChild(searchContainer);
+
+  // Keep the existing event listener code
+  searchInput.addEventListener("keypress", (event) => {
+    if (event.key === "Enter") {
+      const searchTerm = searchInput.value.toLowerCase();
+      const country = countries.features.find(feature =>
+        feature.properties &&
+        feature.properties.name &&
+        feature.properties.name.toLowerCase().includes(searchTerm)
+      );
+
+      if (country) {
+        focusOnCountry(country);
+      }
+    }
+  });
+}
+
+
+
+function focusOnCountry(country) {
+  const coordinates = calculateCountryCenter(country.geometry);
+  if (coordinates) {
+    // Stop current globe rotation
+    controls.autoRotate = false;
+
+    // Create visual highlight
+    createHighlight(country.properties.name, coordinates);
+
+    // Rotate globe to focus on country
+    rotateGlobeToCountry(coordinates);
+  }
+}
+
+function calculateCountryCenter(geometry) {
+  let lat = 0, lon = 0, count = 0;
+
+  if (geometry.type === "Polygon") {
+    geometry.coordinates[0].forEach(coord => {
+      lon += coord[0];
+      lat += coord[1];
+      count++;
+    });
+  } else if (geometry.type === "MultiPolygon") {
+    geometry.coordinates.forEach(polygon => {
+      polygon[0].forEach(coord => {
+        lon += coord[0];
+        lat += coord[1];
+        count++;
+      });
+    });
+  }
+
+  return count > 0 ? [lon / count, lat / count] : null;
+}
+
+function rotateGlobeToCountry(coordinates) {
+  const [lon, lat] = coordinates;
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = (180 - lon) * Math.PI / 180;
+
+  const distance = camera.position.length();
+
+  gsap.to(camera.position, {
+    duration: 1,
+    x: distance * Math.sin(phi) * Math.cos(theta),
+    y: distance * Math.cos(phi),
+    z: distance * Math.sin(phi) * Math.sin(theta),
+    onUpdate: () => {
+      camera.lookAt(scene.position);
+    }
+  });
+}
+
+
 
 function initGlobe() {
   const globeGroup = new Group();
@@ -373,6 +472,18 @@ function createButtons() {
   button3.style.cursor = "pointer";
   menuContent.appendChild(button3);
 
+  // Create Chatbot Button (New Addition)
+  const chatbotButton = document.createElement("button");
+  chatbotButton.innerText = "Chatbot";
+  chatbotButton.style.padding = "10px 20px";
+  chatbotButton.style.fontSize = "16px";
+  chatbotButton.style.backgroundColor = "#0c529c";
+  chatbotButton.style.color = "#ffffff";
+  chatbotButton.style.border = "none";
+  chatbotButton.style.borderRadius = "5px";
+  chatbotButton.style.cursor = "pointer";
+  menuContent.appendChild(chatbotButton);
+
   // Create Reset Button
   const resetButton = document.createElement("button");
   resetButton.innerText = "Reset";
@@ -408,8 +519,43 @@ function createButtons() {
     stopCurrentAnimation();
     stopCurrentTypeWriter();
     Globe.arcsData([]); // Clear existing arcs
-    console.log("arcs cleaned");
     showSpaceDebris();
+    menuContent.style.display = "none"; // Close menu after click
+  });
+
+  // Add Chatbot Button Click Handler
+  chatbotButton.addEventListener("click", () => {
+    const chatbotInterface = document.createElement("div");
+    chatbotInterface.style.position = "absolute";
+    chatbotInterface.style.bottom = "20px";
+    chatbotInterface.style.left = "20px";
+    chatbotInterface.style.width = "300px";
+    chatbotInterface.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    chatbotInterface.style.borderRadius = "10px";
+    chatbotInterface.style.padding = "20px";
+    chatbotInterface.style.zIndex = "1000";
+
+    chatbotInterface.innerHTML = `
+      <p style="color: #ffffff; margin-bottom: 20px; font-size: 14px;">
+        Hello, I am the International Affairs Chatbot, ready to answer all your questions! 
+        Just select any two countries, and I will tell you about their geopolitical affairs.
+      </p>
+      <input type="text" placeholder="Enter first country" 
+        style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: rgba(255, 255, 255, 0.1); 
+        border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 5px; color: #ffffff;">
+      <input type="text" placeholder="Enter second country" 
+        style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: rgba(255, 255, 255, 0.1); 
+        border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 5px; color: #ffffff;">
+    `;
+
+    // Remove existing chatbot interface if it exists
+    const existingChatbot = document.querySelector(".chatbot-interface");
+    if (existingChatbot) {
+      existingChatbot.remove();
+    }
+
+    chatbotInterface.classList.add("chatbot-interface");
+    document.body.appendChild(chatbotInterface);
     menuContent.style.display = "none"; // Close menu after click
   });
 
@@ -423,6 +569,8 @@ function createButtons() {
     menuContent.style.display = menuContent.style.display === "flex" ? "none" : "flex";
   });
 }
+
+
 
 function showSpaceDebris() {
   clearDebrisAndOrbits();
@@ -450,7 +598,7 @@ function showSpaceDebris() {
   ];
 
 
-  const scaleFactor = 0.01; 
+  const scaleFactor = 0.01;
 
   // Add debris as small spheres and their orbits
   const numDebris = 100; // Number of debris pieces to generate
@@ -469,7 +617,7 @@ function showSpaceDebris() {
 
     // Create debris sphere
     const debrisGeometry = new SphereGeometry(0.5, 8, 8);
-    const debrisMaterial = new MeshBasicMaterial({ color: new Color(orbit.color) }); 
+    const debrisMaterial = new MeshBasicMaterial({ color: new Color(orbit.color) });
     const debrisMesh = new Mesh(debrisGeometry, debrisMaterial);
     debrisMesh.userData = { isDebrisOrOrbit: true }; // Mark as debris
 
@@ -490,7 +638,7 @@ function showSpaceDebris() {
       64 // Number of segments
     );
     const orbitMaterial = new MeshBasicMaterial({
-      color: new Color(orbit.color), 
+      color: new Color(orbit.color),
       transparent: true,
       opacity: 0.3,
       side: DoubleSide,
@@ -825,7 +973,7 @@ function showInternetCables() {
     `;
     typeWriter(explanationText, verticalButton);
   }
-  
+
 
 }
 
@@ -857,7 +1005,7 @@ function createVerticalButton() {
 
 function typeWriter(htmlContent, element, speed = 50) {
   stopCurrentTypeWriter(); // Stop any ongoing typing
-  element.innerHTML = ""; 
+  element.innerHTML = "";
 
   // Create a temporary container to hold the HTML content
   const tempDiv = document.createElement("div");
@@ -1019,9 +1167,9 @@ function haversineDistance(point1, point2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
